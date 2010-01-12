@@ -75,7 +75,7 @@ function cbisimport_client($service) {
  * @param array $options
  *  The query options to send to CBIS.
  * @return array
- *  The raw product data. Create a instance of CbisTemplate to 
+ *  The raw product data. Create a instance of CbisTemplate to
  */
 function cbisimport_get_products($options=array()) {
   $defaults = array(
@@ -107,7 +107,7 @@ function cbisimport_get_products($options=array()) {
  * @param array $options
  *  The query options to send to CBIS.
  * @return array
- *  The raw product data. Create a instance of CbisTemplate to 
+ *  The raw product data. Create a instance of CbisTemplate to
  */
 function cbisimport_get_product($id, $options=array()) {
   $defaults = array(
@@ -148,6 +148,7 @@ function cbisimport_theme() {
   $theme = array(
     'cbis_product' => array(
       'template' => 'cbis_product',
+      'preprocess functions' => array('cbisimport_preprocess_cbis_product'),
       'arguments' => array(
         'product' => NULL,
       ),
@@ -182,7 +183,7 @@ function cbisimport_preprocess_cbis_product($vars) {
  * Normalizes results into arrays. This is necessary because the deserialized
  * xml from the soap client is inconsistent when it comes to collections of
  * elements that contain 1 versus 2 or more elements.
- * 
+ *
  *    <a><b></b><a> => a->b == object
  *    <a><b></b><b></b><a> => a->b == array(object, object)
  *
@@ -247,8 +248,8 @@ function cbisimport_get_categories() {
 /**
  * Flattens the category tree from CBIS.
  *
- * @param array $categories 
- * @param array $category 
+ * @param array $categories
+ * @param array $category
  * @return void
  */
 function _cbisimport_add_category(&$categories, $category) {
