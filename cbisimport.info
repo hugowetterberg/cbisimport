@@ -1,0 +1,7 @@
+; $Id$
+name = CBIS Import
+description = Imports data from the CityBreak Information System
+core = 6.x
+php = 5.2
+
+dependencies[] = autoload

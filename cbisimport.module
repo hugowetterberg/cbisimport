@@ -1,0 +1,301 @@
+<?php
+// $Id$
+
+define('CBIS_LANGUAGE_SV', 1);
+define('CBIS_LANGUAGE_EN', 2);
+
+/**
+ * Implementation of hook_perm().
+ */
+function hook_perm() {
+  return array('administer cbis import');
+}
+
+/**
+ * Implementation of hook_menu().
+ */
+function cbisimport_menu() {
+  $menu = array();
+
+  $menu['admin/settings/cbisimport'] = array(
+    'title' => 'CBIS Import',
+    'description' => 'Settings for the import from CBIS',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('cbisimport_settings_form'),
+    'file' => 'cbisimport.admin.inc',
+    'type' => MENU_NORMAL_ITEM,
+    'access arguments' => array('administer cbis import'),
+  );
+
+  $menu['webhooks/cbisimport/product/%'] = array(
+    'page callback' => '_cbisimport_product_updated_webhook',
+    'page arguments' => array(3),
+    'file' => 'cbisimport.webhook.inc',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('access content'),
+  );
+
+  return $menu;
+}
+
+/**
+ * Implementation hook_autoload_info().
+ */
+function cbisimport_autoload_info() {
+  return array(
+    'CbisClient' => array('file' => 'CbisClient.php'),
+    'CbisTemplate' => array('file' => 'CbisTemplate.php'),
+  );
+}
+
+/**
+ * Implementation of hook_enable().
+ */
+function cbisimport_enable() {
+  // Flush the autoload caches so that our classes are registered
+  autoload_flush_caches();
+}
+
+/**
+ * Returns an instance of the CbisClient.
+ *
+ * @param string $service
+ *  The service that is to be accessed.
+ * @return CbisClient
+ */
+function cbisimport_client($service) {
+  return new CbisClient($service, array(
+    'encoding'=>'UTF-8',
+  ));
+}
+
+/**
+ * Gets products from CBIS.
+ *
+ * @param array $options
+ *  The query options to send to CBIS.
+ * @return array
+ *  The raw product data. Create a instance of CbisTemplate to 
+ */
+function cbisimport_get_products($options=array()) {
+  $defaults = array(
+    'languageId' => CBIS_LANGUAGE_SV,
+    'categoryId' => 0,
+    'templateId' => 0,
+    'pageOffset' => 0,
+    'itemsPerPage' => 10,
+    'filter' => array(
+      'OrderBy' => 'None',
+      'SortOrder' => 'Descending',
+      'SubCategoryId' => 0,
+      'Highlights' => FALSE,
+      'ProductType' => 'All',
+      'WithOccasionsOnly' => FALSE,
+      'ExcludeProductsWithoutOccasions' => FALSE,
+    ),
+  );
+
+  $options = cbisimport_merge_recursive($defaults, $options);
+  $client = cbisimport_client('Products');
+  $res = $client->ListAll($options);
+  return cbisimport_array($res->ListAllResult->Items->Product);
+}
+
+/**
+ * Gets a product from CBIS by id.
+ *
+ * @param array $options
+ *  The query options to send to CBIS.
+ * @return array
+ *  The raw product data. Create a instance of CbisTemplate to 
+ */
+function cbisimport_get_product($id, $options=array()) {
+  $defaults = array(
+    'languageId' => CBIS_LANGUAGE_SV,
+    'categoryId' => 0,
+    'templateId' => 0,
+    'productId' => $id,
+  );
+
+  $options = cbisimport_merge_recursive($defaults, $options);
+  $client = cbisimport_client('Products');
+  $res = $client->GetById($options);
+  return $res->GetByIdResult;
+}
+
+/**
+ * Gets the update status for all the products.
+ *
+ * @return array
+ *  An associative array with the timestamps for when the products were
+ *  updated keyed by the product id's.
+ */
+function cbisimport_product_update_status() {
+  $client = cbisimport_client('Products');
+  $res = $client->GetUpdateInformation();
+
+  $updates = array();
+  foreach(cbisimport_array($res->GetUpdateInformationResult->ProductUpdate) as $up) {
+    $updates[$up->ProductId] = strtotime($up->LastUpdated, time());
+  }
+  return $updates;
+}
+
+/**
+ * Implementation of hook_theme().
+ */
+function cbisimport_theme() {
+  $theme = array(
+    'cbis_product' => array(
+      'template' => 'cbis_product',
+      'arguments' => array(
+        'product' => NULL,
+      ),
+    ),
+    'cbis_product_address' => array(
+      'template' => 'cbis_product_address',
+      'arguments' => array(
+        'attributes' => NULL,
+      ),
+    ),
+  );
+  return $theme;
+}
+
+/**
+ * undocumented function
+ *
+ * @return void
+ * @author Hugo Wetterberg
+ */
+function template_preprocess_cbisimport($vars) {
+  var_dump($vars); die;
+}
+
+/**
+ * Normalizes results into arrays. This is necessary because the deserialized
+ * xml from the soap client is inconsistent when it comes to collections of
+ * elements that contain 1 versus 2 or more elements.
+ * 
+ *    <a><b></b><a> => a->b == object
+ *    <a><b></b><b></b><a> => a->b == array(object, object)
+ *
+ * @param mixed $v
+ * @return array
+ */
+function cbisimport_array($v) {
+  if (!is_array($v)) {
+    $a=(array)$v;
+    if (is_object($v) && empty($a)) {
+      $v = array();
+    }
+    else {
+      $v = array($v);
+    }
+  }
+  return $v;
+}
+
+/**
+ * An alternative to array_merge_recursive
+ *
+ * @return array
+ */
+function cbisimport_merge_recursive() {
+  $args = func_get_args();
+  $a = array_shift($args);
+
+  foreach ($args as $b) {
+    foreach ($b as $key => $val) {
+      if (is_array($val) && is_array($a[$key])) {
+        $b[$key] = custom_merge_recursive($a[$key], $val);
+      }
+    }
+    $a = array_merge($a, $b);
+  }
+
+  return $a;
+}
+
+/**
+ * Fetches a list of categories from CBIS.
+ *
+ * @return array
+ */
+function cbisimport_get_categories() {
+  $client = cbisimport_client('Categories');
+  $categories = array();
+  $result = $client->ListAll(array(
+    'languageId' => 1,
+    'parentCategoryId' => 0,
+  ));
+
+  if ($result) {
+    foreach (cbisimport_array($result->ListAllResult->Nodes->TreeNodeOfCategory) as $root) {
+      _cbisimport_add_category($categories, $root);
+    }
+  }
+  return $categories;
+}
+
+/**
+ * Flattens the category tree from CBIS.
+ *
+ * @param array $categories 
+ * @param array $category 
+ * @return void
+ */
+function _cbisimport_add_category(&$categories, $category) {
+  $categories[$category->Data->Id] = $category->Data;
+  $category->Data->Children = array();
+  foreach($category->Children as $child) {
+    $categories[$category->Data->Id]->Children[] = $child->Data->Id;
+    $categories[$child->Data->Id] = $child->Data;
+    _cbisimport_add_children($categories, $child);
+  }
+}
+
+/**
+ * Fetches a list of templates from CBIS.
+ *
+ * @return array
+ */
+function cbisimport_get_templates() {
+  static $templates;
+  $cache_key = 'cbisimport:templates';
+
+  if (!$templates && ($cache = cache_get($cache_key)) && isset($cache->data)) {
+    $templates = $cache->data;
+  }
+
+  if (!$templates) {
+    $templates = array();
+    $client = cbisimport_client('Templates');
+    $result = $client->ListAll(array(
+      'languageId' => 1,
+    ));
+    foreach ($result->ListAllResult->Template as $template) {
+      $templates[$template->Id] = $template;
+    }
+    cache_set($cache_key, $templates);
+  }
+
+  return $templates;
+}
+
+/**
+ * Returns a specific template.
+ *
+ * @param int $id
+ *  The Id of the template
+ * @return object
+ */
+function cbisimport_get_template($id) {
+  $templates = cbisimport_get_templates();
+
+  $template = NULL;
+  if (isset($templates[$id])) {
+    $template = $templates[$id];
+  }
+  return $template;
+}
