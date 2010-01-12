@@ -163,13 +163,19 @@ function cbisimport_theme() {
 }
 
 /**
- * undocumented function
+ * Add template suggestions based on the CBIS template.
  *
- * @return void
- * @author Hugo Wetterberg
+ * @param array $vars
+ * @return array
  */
-function template_preprocess_cbisimport($vars) {
-  var_dump($vars); die;
+function cbisimport_preprocess_cbis_product($vars) {
+  if (is_array($vars['product']['TemplateParents'])) {
+    foreach ($vars['product']['TemplateParents'] as $t) {
+      $vars['template_files'][] = 'cbis_product_' . $t['id'];
+    }
+  }
+  $vars['template_files'][] = 'cbis_product_' . $vars['product']['TemplateId'];
+  return $vars;
 }
 
 /**
