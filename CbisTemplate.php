@@ -45,7 +45,6 @@ class CbisTemplate {
     $template = cbisimport_get_template($id);
     if ($template) {
       if (!empty($template->ParentId)) {
-        $this->loadDefinition($template->ParentId);
         $this->parents[] = array('id' => $template->ParentId, 'name' => $this->name);
       }
       $this->name = $template->Name;
