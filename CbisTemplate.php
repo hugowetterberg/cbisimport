@@ -44,14 +44,29 @@ class CbisTemplate {
   private function loadDefinition($id) {
     $template = cbisimport_get_template($id);
     if ($template) {
-      if (!empty($template->ParentId)) {
-        $this->parents[] = array('id' => $template->ParentId, 'name' => $this->name);
-      }
       $this->name = $template->Name;
       foreach (cbisimport_array($template->Attributes->TemplateAttribute) as $attribute) {
         $this->attributes[$attribute->AttributeId] = $attribute;
       }
     }
+    $this->template = $template;
+  }
+
+  /**
+   * Checks if the template is an instance of a specific template. That is if
+   * the template is the template in question, or if it inherits from it.
+   *
+   * @param int $template_id
+   * @return bool
+   */
+  public function isInstanceOf($template_id) {
+    $match = $this->template->Id == $template_id;
+    $match = $match || $this->template->ParentId == $template_id;
+    if (!$match && $this->template->ParentId) {
+      $parent = self::getTemplate($this->template->ParentId);
+      $match = $parent->isInstanceOf($template_id);
+    }
+    return $match;
   }
 
   /**
@@ -95,8 +110,9 @@ class CbisTemplate {
           $value = $this->sanitizeProductAttributes($value->AttributeData);
           break;
         case 'Occasions':
-          $value = cbisimport_array($value->OccasionObject);
-          foreach ($value as $occasion) {
+          $occasions = cbisimport_array($value->OccasionObject);
+          $value = array();
+          foreach ($occasions as $occasion) {
             $o = strtotime('0001-01-01T00:00:00');
             $occasion->StartDate = strtotime($occasion->StartDate);
             $occasion->EndDate = strtotime($occasion->EndDate);
@@ -106,6 +122,7 @@ class CbisTemplate {
             if ($occasion->EntryTime == $o) {
               $occasion->EntryTime = NULL;
             }
+            $value[$occasion->Id] = $occasion;
           }
           break;
         case 'PublishedDate':

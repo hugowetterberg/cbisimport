@@ -1,0 +1,7 @@
+; $Id$
+name = CBIS Node
+description = Creates nodes from data imported from CBIS
+core = 6.x
+php = 5.2
+
+dependencies[] = cbisimport

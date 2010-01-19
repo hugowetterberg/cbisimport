@@ -1,0 +1,79 @@
+<?php
+
+/**
+ * Implementation of hook_theme().
+ */
+function cbisnode_theme() {
+  $theme = array(
+    'cbis_product' => array(
+      'template' => 'cbis_product',
+      'preprocess functions' => array('cbisimport_preprocess_cbis_product'),
+      'arguments' => array(
+        'product' => NULL,
+      ),
+    ),
+    'cbis_product_address' => array(
+      'template' => 'cbis_product_address',
+      'arguments' => array(
+        'attributes' => NULL,
+      ),
+    ),
+  );
+  return $theme;
+}
+
+/**
+ * Add template suggestions based on the CBIS template.
+ *
+ * @param array $vars
+ * @return array
+ */
+function cbisnode_preprocess_cbis_product($vars) {
+  if (is_array($vars['product']['TemplateParents'])) {
+    foreach ($vars['product']['TemplateParents'] as $t) {
+      $vars['template_files'][] = 'cbis_product_' . $t['id'];
+    }
+  }
+  $vars['template_files'][] = 'cbis_product_' . $vars['product']['TemplateId'];
+  return $vars;
+}
+
+/**
+ * Implementation of hook_cbisimport_saving_product().
+ */
+function cbisnode_cbisimport_saving_product($info) {
+  $product = $info->product;
+  $template = CbisTemplate::getTemplate($product['TemplateId']);
+
+  $event = $template->isInstanceOf(81);
+
+  $attr = $product['Attributes'];
+  $node = array(
+    'type' => $event ? 'event' : 'location',
+    'title' => $product['Name'],
+    'created' => $product['PublishedDate'],
+    'teaser' => $attr['Introduction'],
+    'body' => theme('cbis_product', $product),
+  );
+
+  if (module_exists('simple_geo')) {
+    if (!empty($attr['Latitude'])) {
+      $node['simple_geo_position'] = sprintf('%s %s', $attr['Latitude'], $attr['Longitude']);
+    }
+  }
+
+  if ($event) {
+    foreach ($product['Occasions'] as $occasion) {
+      foreach ($occasion->Expanded as $e) {
+        //array($occasion->Id, $e[0], $e[1]);
+        $nid = cbisimport_mapping_exists($info, $occasion->Id, $e[0]);
+      }
+    }
+  }
+  else {
+    
+  }
+
+  var_dump($node);
+  var_dump($info);
+}

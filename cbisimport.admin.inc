@@ -27,7 +27,8 @@ function cbisimport_settings_form() {
     '#default_value' => variable_get('cbisimport_api_key', ''),
   );
 
-  $products = CbisTemplate::sanitize(cbisimport_get_products());
+  $products = cbisimport_get_products(array('templateId'=>81));
+  $products = CbisTemplate::sanitize($products);
   $form['cbisimport_products'] = array(
     '#value' => var_export($products, TRUE),
     '#prefix' => '<pre>',

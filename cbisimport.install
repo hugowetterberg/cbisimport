@@ -1,0 +1,145 @@
+<?php
+// $Id$
+
+function cbisimport_install() {
+  drupal_install_schema('cbisimport');
+}
+
+function cbisimport_uninstall() {
+  drupal_uninstall_schema('cbisimport');
+}
+
+function cbisimport_schema() {
+  $schema = array();
+
+  $schema['cbisimport_product'] = array(
+    'description' => 'Stores products from CBIS',
+    'fields' => array(
+      'pid' => array(
+        'description' => t('The primary identifier for a product.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'name' => array(
+        'description' => t('The product name'),
+        'type' => 'varchar',
+        'length' => 255,
+        'not null' => TRUE,
+      ),
+      'template' => array(
+        'description' => t('The template id for a product.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'updated' => array(
+        'description' => t('The timestamp for when the product was updated.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'data' => array(
+        'description' => t('The data from CBIS'),
+        'type' => 'text',
+        'size' => 'medium',
+        'serialized' => TRUE,
+      ),
+    ),
+    'primary key' => array('pid'),
+  );
+
+  $schema['cbisimport_product_occasion'] = array(
+    'description' => 'Stores product occasions from CBIS',
+    'fields' => array(
+      'oid' => array(
+        'description' => t('The primary identifier for the occasion.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'pid' => array(
+        'description' => t('The primary identifier for the product.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'start_date' => array(
+        'description' => t('The start date for the occasion.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'end_date' => array(
+        'description' => t('The start date for the occasion.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'start_time' => array(
+        'description' => t('The start time for the occasion (second of day).'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'end_time' => array(
+        'description' => t('The end time for the occasion (second of day).'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'days' => array(
+        'description' => t('The valid weekdays'),
+        'type' => 'varchar',
+        'length' => 255,
+        'default' => '',
+        'not null' => TRUE,
+      ),
+    ),
+    'primary key' => array('oid'),
+    'indexes' => array(
+      'product' => array('pid'),
+    ),
+  );
+
+  $schema['cbisimport_product_node'] = array(
+    'description' => 'Stores product occasions from CBIS',
+    'fields' => array(
+      'pid' => array(
+        'description' => t('The primary identifier for the product.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'oid' => array(
+        'description' => t('The primary identifier for the occasion.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'subid' => array(
+        'description' => t('The sub-identifier for the node association.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+      'nid' => array(
+        'description' => t('The primary identifier for the node associated with the product.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('pid', 'oid', 'subid'),
+    'indexes' => array(
+      'node' => array('nid'),
+      'product' => array('pid'),
+      'occasion' => array('pid', 'oid'),
+    ),
+  );
+
+  return $schema;
+}

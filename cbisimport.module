@@ -142,44 +142,6 @@ function cbisimport_product_update_status() {
 }
 
 /**
- * Implementation of hook_theme().
- */
-function cbisimport_theme() {
-  $theme = array(
-    'cbis_product' => array(
-      'template' => 'cbis_product',
-      'preprocess functions' => array('cbisimport_preprocess_cbis_product'),
-      'arguments' => array(
-        'product' => NULL,
-      ),
-    ),
-    'cbis_product_address' => array(
-      'template' => 'cbis_product_address',
-      'arguments' => array(
-        'attributes' => NULL,
-      ),
-    ),
-  );
-  return $theme;
-}
-
-/**
- * Add template suggestions based on the CBIS template.
- *
- * @param array $vars
- * @return array
- */
-function cbisimport_preprocess_cbis_product($vars) {
-  if (is_array($vars['product']['TemplateParents'])) {
-    foreach ($vars['product']['TemplateParents'] as $t) {
-      $vars['template_files'][] = 'cbis_product_' . $t['id'];
-    }
-  }
-  $vars['template_files'][] = 'cbis_product_' . $vars['product']['TemplateId'];
-  return $vars;
-}
-
-/**
  * Normalizes results into arrays. This is necessary because the deserialized
  * xml from the soap client is inconsistent when it comes to collections of
  * elements that contain 1 versus 2 or more elements.
@@ -305,4 +267,177 @@ function cbisimport_get_template($id) {
     $template = $templates[$id];
   }
   return $template;
+}
+
+/**
+ * Function that should be run when we've fetched products from CBIS. This
+ * will trigger hooks that inform other modules of updates and creations.
+ *
+ * @param array $product
+ * @return void
+ */
+function cbisimport_product_recieved($product) {
+  $info = (object)array(
+    'mappings' => array(),
+  );
+  $info->product = $product;
+
+  foreach ($product['Occasions'] as $o) {
+    $o->Expanded = cbisimport_expand_occasion($o);
+  }
+
+  $info->current = db_fetch_array(db_query("SELECT * FROM {cbisimport_product} WHERE pid=%d", array(
+    ':pid' => $product['Id'],
+  )));
+  $info->current['data'] = unserialize($info->current['data']);
+  if ($info->current) {
+    // Get node mappings for the product
+    $res = db_query("SELECT `oid`, subid, nid FROM {cbisimport_product_node} WHERE pid=%d", array(
+      ':pid' => $product['Id'],
+    ));
+    while ($mapping = db_fetch_array($res)) {
+      $info->mappings[$mapping['oid']][$mapping['subid']] = $mapping['nid'];
+    }
+    $info->current['occasions'] = cbisimport_product_occasions($product['Id']);
+  }
+  module_invoke_all('cbisimport_saving_product', $info);
+  cbisimport_product_write($product, $info->current);
+}
+
+function cbisimport_exit() {
+  error_log('Peak memory usage: ' . xdebug_peak_memory_usage() . ', ' . $_GET['q']);
+}
+
+function cbisimport_product_occasions($id) {
+  static $so;
+  $occasions = array();
+  if (!isset($so[$id])) {
+    $res = db_query("SELECT * FROM {cbisimport_product_occasion} WHERE pid=%d", array(
+      ':pid' => $id,
+    ));
+    while ($o = db_fetch_array($res)) {
+      $occasions[$o['oid']] = $o;
+    }
+    $so = array($id => $occasions);
+  }
+  else {
+    $occasions = $so[$id];
+  }
+  return $occasions;
+}
+
+/**
+ * Writes a product to the database.
+ *
+ * @param array $product
+ * @param bool $update
+ * @return void
+ */
+function cbisimport_product_write($product, $update=FALSE) {
+  $entry = array(
+    'pid' => $product['Id'],
+    'name' => $product['Name'],
+    'template' => $product['TemplateId'],
+    'updated' => $product['PublishedDate'], // TODO: Exchange as soon as the API exposes mod-time.
+    'data' => serialize($product),
+  );
+  drupal_write_record('cbisimport_product', $entry, $update ? array('pid') : NULL);
+
+  $occasions = cbisimport_product_occasions($product['Id']);
+  $delete = array();
+  $update = array();
+  $add = array();
+  foreach (array_keys($occasions) as $id) {
+    if (!isset($product['Occasions'][$id])) {
+      $delete[] = $id;
+      module_invoke_all('cbisimport_deleting_occasion', $occasions[$id], $product);
+    }
+    else {
+      $update[] = $id;
+    }
+  }
+  foreach (array_keys($product['Occasions']) as $id) {
+    if (!isset($occasions[$id])) {
+      $add[] = $id;
+    }
+  }
+
+  // Delete old occasions
+  if (!empty($delete)) {
+    db_query(sprintf('DELETE FROM {cbisimport_product_occasion} WHERE `oid` IN(%s)',
+      db_placeholders($delete)), $delete);
+  }
+
+  // Add new occasions
+  foreach ($add as $id) {
+    $record = _cbisimport_occasion_record($product['Occasions'][$id]);
+    module_invoke_all('cbisimport_adding_occasion', $record, $product);
+    drupal_write_record('cbisimport_product_occasion', $record);
+  }
+
+  // Update existing occasions
+  foreach ($update as $id) {
+    $record = _cbisimport_occasion_record($product['Occasions'][$id]);
+    module_invoke_all('cbisimport_updating_occasion', $record, $product);
+    drupal_write_record('cbisimport_product_occasion', $record, array('oid'));
+  }
+}
+
+function _cbisimport_occasion_record($occasion) {
+  return array(
+    'oid' => $occasion->Id,
+    'pid' => $occasion->ProductId,
+    'start_date' => $occasion->StartDate,
+    'end_date' => $occasion->EndDate,
+    'start_time' => $occasion->StartTime,
+    'end_time' => $occasion->EndTime,
+    'days' => $occasion->ValidDays,
+  );
+}
+
+/**
+ * Expands a occasion record into an array of start->end timestamp tuples.
+ *
+ * @param array $occasion
+ * @return array
+ */
+function cbisimport_expand_occasion($occasion) {
+  $occasions = array();
+  $daymap = array(
+    'sunday' => 0,
+    'monday' => 1,
+    'tuesday' => 2,
+    'wednesday' => 3,
+    'thursday' => 4,
+    'friday' => 5,
+    'saturday' => 6,
+  );
+
+  $r = $occasion;
+  if (is_object($r)) {
+    $r = _cbisimport_occasion_record($r);
+  }
+
+  $days = array();
+  foreach (split(' ', $r['days']) as $day) {
+    $days[$daymap[strtolower($day)]] = TRUE;
+  }
+
+  $day = $r['start_date'];
+  while ($day <= $r['end_date']) {
+    $wd = date('w', $day);
+    if (isset($days[$wd])) {
+      $occasions[] = array(
+        $day + $r['start_time'],
+        $day + $r['end_time'],
+      );
+    }
+    $day += 60 * 60 * 24;
+  }
+
+  return $occasions;
+}
+
+function cbisimport_mapping_exists($info, $oid, $subid) {
+  return isset($info['mappings'][$oid][$subid]) ? $info['mappings'][$oid][$subid] : 0;
 }
