@@ -42,6 +42,7 @@ function cbisnode_preprocess_cbis_product($vars) {
  * Implementation of hook_cbisimport_saving_product().
  */
 function cbisnode_cbisimport_saving_product($info) {
+  global $user;
   $product = $info->product;
   $template = CbisTemplate::getTemplate($product['TemplateId']);
 
@@ -54,6 +55,7 @@ function cbisnode_cbisimport_saving_product($info) {
     'created' => $product['PublishedDate'],
     'teaser' => $attr['Introduction'],
     'body' => theme('cbis_product', $product),
+    'uid' => $user->uid,
   );
 
   if (module_exists('simple_geo')) {
@@ -65,15 +67,72 @@ function cbisnode_cbisimport_saving_product($info) {
   if ($event) {
     foreach ($product['Occasions'] as $occasion) {
       foreach ($occasion->Expanded as $e) {
-        //array($occasion->Id, $e[0], $e[1]);
-        $nid = cbisimport_mapping_exists($info, $occasion->Id, $e[0]);
+        $node['nid'] = cbisimport_mapping_exists($info, $occasion->Id, $e[0]);
+        if (!$node['nid']) {
+          cbisnode_api_create_event($node, $info, $occasion, $e);
+        }
+        else {
+          cbisnode_api_update_event($node, $info, $occasion, $e);
+        }
       }
     }
   }
   else {
-    
+    $node['nid'] = cbisimport_mapping_exists($info);
+    if (!$node['nid']) {
+      cbisnode_api_create_info($node, $info);
+    }
+    else {
+      cbisnode_api_update_info($node, $info);
+    }
   }
 
-  var_dump($node);
-  var_dump($info);
+  // TODO: Delete stuff that've been removed.
+}
+
+
+function cbisnode_api_create_event($node_data, $info, $occasion, $interval) {
+  $node = (object)$node_data;
+
+  module_invoke_all('cbisnode_api_before_create_event', $node, $info, $occasion, $interval);
+  module_invoke_all('cbisnode_api_before_event_save', $node, $info, $occasion, $interval);
+  node_save($node);
+  module_invoke_all('cbisnode_api_after_create_event', $node, $info, $occasion, $interval);
+  module_invoke_all('cbisnode_api_event_saved', $node, $info, $occasion, $interval);
+
+  cbisimport_mapping_add($info->product['Id'], $node->nid, $occasion->Id, $interval[0]);
+}
+
+function cbisnode_api_update_event($node_data, $info, $occasion, $interval) {
+  $current = get_object_vars(node_load($node_data['nid']));
+  $node = (object)array_merge($current, $node_data);
+
+  module_invoke_all('cbisnode_api_before_update_event', $node, $info, $occasion, $interval);
+  module_invoke_all('cbisnode_api_before_event_save', $node, $info, $occasion, $interval);
+  node_save($node);
+  module_invoke_all('cbisnode_api_after_update_event', $node, $info, $occasion, $interval);
+  module_invoke_all('cbisnode_api_event_saved', $node, $info, $occasion, $interval);
+}
+
+function cbisnode_api_create_info($node_data, $info) {
+  $node = (object)$node_data;
+
+  module_invoke_all('cbisnode_api_before_create_info', $node, $info);
+  module_invoke_all('cbisnode_api_before_info_save', $node, $info);
+  node_save($node);
+  module_invoke_all('cbisnode_api_after_create_info', $node, $info);
+  module_invoke_all('cbisnode_api_info_saved', $node, $info);
+
+  cbisimport_mapping_add($info->product['Id'], $node->nid, 0, 0);
+}
+
+function cbisnode_api_update_info($node_data, $info) {
+  $current = get_object_vars(node_load($node_data['nid']));
+  $node = (object)array_merge($current, $node_data);
+
+  module_invoke_all('cbisnode_api_before_create_info', $node, $info);
+  module_invoke_all('cbisnode_api_before_info_save', $node, $info);
+  node_save($node);
+  module_invoke_all('cbisnode_api_after_create_info', $node, $info);
+  module_invoke_all('cbisnode_api_info_saved', $node, $info);
 }

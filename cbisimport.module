@@ -304,10 +304,6 @@ function cbisimport_product_recieved($product) {
   cbisimport_product_write($product, $info->current);
 }
 
-function cbisimport_exit() {
-  error_log('Peak memory usage: ' . xdebug_peak_memory_usage() . ', ' . $_GET['q']);
-}
-
 function cbisimport_product_occasions($id) {
   static $so;
   $occasions = array();
@@ -438,6 +434,61 @@ function cbisimport_expand_occasion($occasion) {
   return $occasions;
 }
 
-function cbisimport_mapping_exists($info, $oid, $subid) {
-  return isset($info['mappings'][$oid][$subid]) ? $info['mappings'][$oid][$subid] : 0;
+/**
+ * undocumented function
+ *
+ * @param int|object $info
+ *  Either a product info object or a product id.
+ * @param int $oid
+ *  Optional. Occasion id. Defaults to 0.
+ * @param int $subid
+ *  Optional. Sub-identifier. Defaults to 0.
+ * @return int
+ * @author Hugo Wetterberg
+ */
+function cbisimport_mapping_exists($info, $oid = 0, $subid = 0) {
+  return isset($info->mappings[$oid][$subid]) ? $info->mappings[$oid][$subid] : 0;
+}
+
+/**
+ * Remove a product node assiociation.
+ *
+ * @param int $pid
+ *  Product id.
+ * @param int $nid
+ *  Node id.
+ * @param int $oid
+ *  Optional. Occasion id. Defaults to 0.
+ * @param int $subid
+ *  Optional. Sub-identifier. Defaults to 0.
+ * @return void
+ */
+function cbisimport_mapping_add($pid, $nid, $oid = 0, $subid = 0) {
+  $values = array(
+    'pid' => $pid,
+    'oid' => $oid,
+    'subid' => $subid,
+    'nid' => $nid,
+  );
+  drupal_write_record('cbisimport_product_node', $values);
+}
+
+/**
+ * Remove a product node assiociation.
+ *
+ * @param int $pid
+ *  Product id.
+ * @param int $oid
+ *  Optional. Occasion id. Defaults to 0.
+ * @param int $subid
+ *  Optional. Sub-identifier. Defaults to 0.
+ * @return void
+ */
+function cbisimport_mapping_remove($pid, $oid = 0, $subid = 0) {
+  db_query("DELETE FROM {cbisimport_product_node}
+    WHERE pid = %d AND `oid`= %d AND subid = %d", array(
+      ':pid' => $pid,
+      ':oid' => $oid,
+      ':subid' => $subid,
+    ));
 }
