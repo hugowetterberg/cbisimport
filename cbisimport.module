@@ -131,7 +131,9 @@ function cbisimport_get_product($id, $options=array()) {
   $options = cbisimport_merge_recursive($defaults, $options);
   $client = cbisimport_client('Products');
   $res = $client->GetById($options);
-  return $res->GetByIdResult;
+  $product = $res->GetByIdResult;
+  $product->LanguageId = $options['languageId'];
+  return $product;
 }
 
 /**
