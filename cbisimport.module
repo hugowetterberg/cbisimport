@@ -77,7 +77,7 @@ function cbisimport_client($service) {
  * @return array
  *  The raw product data. Create a instance of CbisTemplate to
  */
-function cbisimport_get_products($options=array()) {
+function cbisimport_get_products($options=array(), $sanitize=TRUE) {
   $defaults = array(
     'languageId' => CBIS_LANGUAGE_SV,
     'categoryId' => 0,
@@ -98,7 +98,18 @@ function cbisimport_get_products($options=array()) {
   $options = cbisimport_merge_recursive($defaults, $options);
   $client = cbisimport_client('Products');
   $res = $client->ListAll($options);
-  return cbisimport_array($res->ListAllResult->Items->Product);
+  $products = cbisimport_array($res->ListAllResult->Items->Product);
+  foreach ($products as &$product) {
+    $product->LanguageId = $options['languageId'];
+  }
+  if ($sanitize) {
+    $insane = $products;
+    $products = array();
+    foreach ($insane as $product) {
+      $products[] = CbisTemplate::sanitize($product);
+    }
+  }
+  return $products;
 }
 
 /**
