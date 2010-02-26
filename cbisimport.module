@@ -220,23 +220,57 @@ function cbisimport_merge_recursive() {
 }
 
 /**
+ * Creates an array of tags from a category.
+ *
+ * @param int $cid
+ * @return array
+ */
+function cbisimport_category_tags($cid) {
+  $categories = cbisimport_get_categories();
+  $category = !empty($categories[$cid]) ? $categories[$cid] : NULL;
+  $tags = array();
+  while ($category) {
+    $taggified = preg_split('/[\/\s]+/', drupal_strtolower(trim($category->Name)));
+    $tags = array_merge($taggified, $tags);
+    if ($category->Parent && !empty($categories[$category->Parent])) {
+      $category = $categories[$category->Parent];
+    }
+    else {
+      $category = NULL;
+    }
+  }
+  return $tags;
+}
+
+/**
  * Fetches a list of categories from CBIS.
  *
  * @return array
  */
 function cbisimport_get_categories() {
-  $client = cbisimport_client('Categories');
-  $categories = array();
-  $result = $client->ListAll(array(
-    'languageId' => 1,
-    'parentCategoryId' => 0,
-  ));
+  static $categories;
+  $cache_key = 'cbisimport:categories';
 
-  if ($result) {
-    foreach (cbisimport_array($result->ListAllResult->Nodes->TreeNodeOfCategory) as $root) {
-      _cbisimport_add_category($categories, $root);
-    }
+  if (!$categories && ($cache = cache_get($cache_key)) && isset($cache->data)) {
+    $categories = $cache->data;
   }
+
+  if (!$categories) {
+    $client = cbisimport_client('Categories');
+    $categories = array();
+    $result = $client->ListAll(array(
+      'languageId' => 1,
+      'parentCategoryId' => 0,
+    ));
+    if ($result) {
+      foreach (cbisimport_array($result->ListAllResult->Nodes->TreeNodeOfCategory) as $root) {
+        $root->Data->Parent = 0;
+        _cbisimport_add_category($categories, $root);
+      }
+    }
+    cache_set($cache_key, $categories);
+  }
+
   return $categories;
 }
 
@@ -250,10 +284,13 @@ function cbisimport_get_categories() {
 function _cbisimport_add_category(&$categories, $category) {
   $categories[$category->Data->Id] = $category->Data;
   $category->Data->Children = array();
-  foreach($category->Children as $child) {
-    $categories[$category->Data->Id]->Children[] = $child->Data->Id;
-    $categories[$child->Data->Id] = $child->Data;
-    _cbisimport_add_children($categories, $child);
+  foreach(cbisimport_array($category->Children->TreeNodeOfCategory) as $child) {
+    if ($child) {
+      $categories[$category->Data->Id]->Children[] = $child->Data->Id;
+      $categories[$child->Data->Id] = $child->Data;
+      $child->Data->Parent = $category->Data->Id;
+      _cbisimport_add_category($categories, $child);
+    }
   }
 }
 
