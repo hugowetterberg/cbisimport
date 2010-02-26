@@ -367,8 +367,10 @@ function cbisimport_product_write($product, $update=FALSE) {
   // Add new occasions
   foreach ($add as $id) {
     $record = _cbisimport_occasion_record($product['Occasions'][$id]);
-    module_invoke_all('cbisimport_adding_occasion', $record, $product);
-    drupal_write_record('cbisimport_product_occasion', $record);
+    if ($record['oid'] && $record['pid'] && $record['start_date'] && $record['end_date']) {
+      module_invoke_all('cbisimport_adding_occasion', $record, $product);
+      drupal_write_record('cbisimport_product_occasion', $record);
+    }
   }
 
   // Update existing occasions
