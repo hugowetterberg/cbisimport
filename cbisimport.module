@@ -11,6 +11,26 @@ function hook_perm() {
   return array('administer cbis import');
 }
 
+
+/**
+ * Returns the language code for a cbis language id.
+ *
+ * @param int $id
+ * @return string
+ */
+function cbisimport_language_code($id) {
+  $code = NULL;
+  switch ($id) {
+    case CBIS_LANGUAGE_SV:
+      $code = 'sv';
+      break;
+    case CBIS_LANGUAGE_EN:
+      $code = 'en';
+      break;
+  }
+  return $code;
+}
+
 /**
  * Implementation of hook_menu().
  */
