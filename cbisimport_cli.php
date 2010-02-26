@@ -3,9 +3,6 @@
 $root = $argv[1];
 chdir($root);
 
-require_once './includes/bootstrap.inc';
-drupal_bootstrap(DRUPAL_BOOTSTRAP_FULL);
-
 // function pcat($categories, $category, $indent = 0) {
 //   print str_repeat('--', $indent) . " {$category->Id}:" . $category->Name . "\n";
 //   foreach ($category->Children as $cid) {
@@ -20,6 +17,15 @@ drupal_bootstrap(DRUPAL_BOOTSTRAP_FULL);
 //     pcat($categories, $category);
 //   }
 // }
+
+$_SERVER['HTTP_HOST'] = $argv[2];
+$_SERVER['PHP_SELF'] = $drupal_base_url['path'].'/index.php';
+$_SERVER['REQUEST_URI'] = $_SERVER['SCRIPT_NAME'] = $_SERVER['PHP_SELF'];
+$_SERVER['REMOTE_ADDR'] = NULL;
+$_SERVER['REQUEST_METHOD'] = NULL;
+
+require_once './includes/bootstrap.inc';
+drupal_bootstrap(DRUPAL_BOOTSTRAP_FULL);
 
 $since = variable_get('cbisimport_last_updated', 0);
 $update_status = cbisimport_product_update_status();
