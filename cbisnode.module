@@ -45,16 +45,20 @@ function cbisnode_cbisimport_saving_product($info) {
   global $user;
   $product = $info->product;
   $template = CbisTemplate::getTemplate($product['TemplateId']);
-  $event = $template->isInstanceOf(81);
+  $type = $template->isInstanceOf(81) ? 'event' : 'location';
   $tags = array();
   foreach (cbisimport_array($product['Categories']->Category) as $category) {
-    $event = $event || $category->DefaultTemplateId == 81;
+    if (cbisimport_category_is_instance_of($category, 2457)) { // Event
+      $type = 'event';
+    } else if (cbisimport_category_is_instance_of($category, 2395)) { // Paket
+      $type = 'post';
+    }
     $tags = array_merge($tags, cbisimport_category_tags($category->Id));
   }
 
   $attr = $product['Attributes'];
   $node = array(
-    'type' => $event ? 'event' : 'location',
+    'type' => $type,
     'title' => $product['Name'],
     'created' => $product['PublishedDate'],
     'teaser' => $attr['Introduction'],
@@ -74,32 +78,65 @@ function cbisnode_cbisimport_saving_product($info) {
     }
   }
 
-  if ($event) {
-    foreach ($product['Occasions'] as $occasion) {
-      foreach ($occasion->Expanded as $e) {
-        $node['nid'] = cbisimport_mapping_exists($info, $occasion->Id, $e[0]);
-        if (!$node['nid']) {
-          cbisnode_api_create_event($node, $info, $occasion, $e);
-        }
-        else {
-          cbisnode_api_update_event($node, $info, $occasion, $e);
+  switch ($type) {
+    case 'event':
+      foreach ($product['Occasions'] as $occasion) {
+        foreach ($occasion->Expanded as $e) {
+          $node['nid'] = cbisimport_mapping_exists($info, $occasion->Id, $e[0]);
+          if (!$node['nid']) {
+            cbisnode_api_create_event($node, $info, $occasion, $e);
+          }
+          else {
+            cbisnode_api_update_event($node, $info, $occasion, $e);
+          }
         }
       }
-    }
-  }
-  else {
-    $node['nid'] = cbisimport_mapping_exists($info);
-    if (!$node['nid']) {
-      cbisnode_api_create_info($node, $info);
-    }
-    else {
-      cbisnode_api_update_info($node, $info);
-    }
+      break;
+    case 'location':
+      $node['nid'] = cbisimport_mapping_exists($info);
+      if (!$node['nid']) {
+        cbisnode_api_create_info($node, $info);
+      }
+      else {
+        cbisnode_api_update_info($node, $info);
+      }
+      break;
+    case 'post':
+      $node['nid'] = cbisimport_mapping_exists($info);
+      if (!$node['nid']) {
+        cbisnode_api_create_post($node, $info);
+      }
+      else {
+        cbisnode_api_update_post($node, $info);
+      }
+      break;
   }
 
   // TODO: Delete stuff that've been removed.
 }
 
+function cbisnode_api_create_post($node_data, $info, $occasion, $interval) {
+  $node = (object)$node_data;
+
+  module_invoke_all('cbisnode_api_before_create_post', $node, $info, $occasion, $interval);
+  module_invoke_all('cbisnode_api_before_post_save', $node, $info, $occasion, $interval);
+  node_save($node);
+  module_invoke_all('cbisnode_api_after_create_post', $node, $info, $occasion, $interval);
+  module_invoke_all('cbisnode_api_post_saved', $node, $info, $occasion, $interval);
+
+  cbisimport_mapping_add($info->product['Id'], $info->product['LanguageId'], $node->nid, $occasion->Id, $interval[0]);
+}
+
+function cbisnode_api_update_post($node_data, $info, $occasion, $interval) {
+  $current = get_object_vars(node_load($node_data['nid']));
+  $node = (object)array_merge($current, $node_data);
+
+  module_invoke_all('cbisnode_api_before_update_post', $node, $info, $occasion, $interval);
+  module_invoke_all('cbisnode_api_before_post_save', $node, $info, $occasion, $interval);
+  node_save($node);
+  module_invoke_all('cbisnode_api_after_update_post', $node, $info, $occasion, $interval);
+  module_invoke_all('cbisnode_api_post_saved', $node, $info, $occasion, $interval);
+}
 
 function cbisnode_api_create_event($node_data, $info, $occasion, $interval) {
   $node = (object)$node_data;
@@ -110,7 +147,7 @@ function cbisnode_api_create_event($node_data, $info, $occasion, $interval) {
   module_invoke_all('cbisnode_api_after_create_event', $node, $info, $occasion, $interval);
   module_invoke_all('cbisnode_api_event_saved', $node, $info, $occasion, $interval);
 
-  cbisimport_mapping_add($info->product['Id'], $node->nid, $occasion->Id, $interval[0]);
+  cbisimport_mapping_add($info->product['Id'], $info->product['LanguageId'], $node->nid, $occasion->Id, $interval[0]);
 }
 
 function cbisnode_api_update_event($node_data, $info, $occasion, $interval) {
@@ -133,7 +170,7 @@ function cbisnode_api_create_info($node_data, $info) {
   module_invoke_all('cbisnode_api_after_create_info', $node, $info);
   module_invoke_all('cbisnode_api_info_saved', $node, $info);
 
-  cbisimport_mapping_add($info->product['Id'], $node->nid, 0, 0);
+  cbisimport_mapping_add($info->product['Id'], $info->product['LanguageId'], $node->nid, 0, 0);
 }
 
 function cbisnode_api_update_info($node_data, $info) {

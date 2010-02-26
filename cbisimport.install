@@ -50,6 +50,12 @@ function cbisimport_schema() {
         'unsigned' => TRUE,
         'not null' => TRUE,
       ),
+      'language' => array(
+        'description' => t('The product language.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
       'name' => array(
         'description' => t('The product name'),
         'type' => 'varchar',
@@ -75,7 +81,10 @@ function cbisimport_schema() {
         'serialized' => TRUE,
       ),
     ),
-    'primary key' => array('pid'),
+    'indexes' => array(
+      'product' => array('pid'),
+    ),
+    'primary key' => array('pid', 'language'),
   );
 
   $schema['cbisimport_product_occasion'] = array(
@@ -89,6 +98,12 @@ function cbisimport_schema() {
       ),
       'pid' => array(
         'description' => t('The primary identifier for the product.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'language' => array(
+        'description' => t('The product language.'),
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
@@ -140,6 +155,12 @@ function cbisimport_schema() {
         'unsigned' => TRUE,
         'not null' => TRUE,
       ),
+      'language' => array(
+        'description' => t('The product language.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
       'oid' => array(
         'description' => t('The primary identifier for the occasion.'),
         'type' => 'int',
@@ -162,7 +183,7 @@ function cbisimport_schema() {
         'default' => 0,
       ),
     ),
-    'primary key' => array('pid', 'oid', 'subid'),
+    'primary key' => array('pid', 'language', 'oid', 'subid'),
     'indexes' => array(
       'node' => array('nid'),
       'product' => array('pid'),

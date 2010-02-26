@@ -27,5 +27,28 @@ function cbisimport_settings_form() {
     '#default_value' => variable_get('cbisimport_api_key', ''),
   );
 
+  $form['cbisimport_categories'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('CBIS import categories'),
+    '#description' => t('Categories that should be imported.'),
+    '#options' => array(),
+    '#default_value' => variable_get('cbisimport_categories', array()),
+  );
+
+  $url = variable_get('cbisimport_api_url', '');
+  if (!empty($url)) {
+    try {
+      $categories = cbisimport_get_categories();
+      foreach ($categories as $category) {
+        if ($category->Parent == 0) {
+          $form['cbisimport_categories']['#options'][$category->Id] = $category->Name;
+        }
+      }
+    }
+    catch (Exception $e) {
+      drupal_set_message($e->getMessage(), 'error');
+    }
+  }
+
   return system_settings_form($form);
 }

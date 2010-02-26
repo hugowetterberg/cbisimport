@@ -3,6 +3,7 @@
 
 define('CBIS_LANGUAGE_SV', 1);
 define('CBIS_LANGUAGE_EN', 2);
+define('CBIS_LANGUAGE_DE', 3);
 
 /**
  * Implementation of hook_perm().
@@ -26,6 +27,9 @@ function cbisimport_language_code($id) {
       break;
     case CBIS_LANGUAGE_EN:
       $code = 'en';
+      break;
+    case CBIS_LANGUAGE_DE:
+      $code = 'de';
       break;
   }
   return $code;
@@ -92,7 +96,7 @@ function cbisimport_client($service) {
 /**
  * Implementation of hook_cron().
  */
-function cbisimport_cron() {
+function cbisimport_cron($debug) {
   $since = variable_get('cbisimport_last_updated', 0);
   if ($since < strtotime('-1 day')) {
     $update_status = cbisimport_product_update_status();
@@ -112,9 +116,36 @@ function cbisimport_cron() {
     $success = array();
     $fail = array();
     while ($qi = db_fetch_array($res)) {
-      $product = CbisTemplate::sanitize(cbisimport_get_product($qi['pid']));
-      if ($product) {
-        cbisimport_product_recieved($product);
+      $languages = array(CBIS_LANGUAGE_SV, CBIS_LANGUAGE_EN, CBIS_LANGUAGE_DE);
+
+      $import = FALSE;
+      $fine = TRUE;
+      foreach ($languages as $language) {
+        $product = CbisTemplate::sanitize(cbisimport_get_product($qi['pid'], array(
+          'languageId' => $language,
+        )));
+        if ($product && !empty($product['Name'])) {
+          if (!$import) {
+            // The import can only be false on first language iteration.
+            foreach (cbisimport_array($product['Categories']->Category) as $category) {
+              // If any category is a match we'll go ahead with the import.
+              $import = $import || cbisimport_should_import_category($category);
+            }
+          }
+          // Break the language loop is the product shouldn't be imported.
+          if (!$import) {
+            break;
+          }
+          if ($debug) {
+            print "{$product['Id']} " . cbisimport_language_code($language) . ": {$product['Name']} \n";
+          }
+          cbisimport_product_recieved($product);
+        }
+        else {
+          $fine = FALSE;
+        }
+      }
+      if ($fine) {
         $success[] = $qi['pid'];
       }
       else {
@@ -123,10 +154,16 @@ function cbisimport_cron() {
     }
     if (!empty($success)) {
       $plc = db_placeholders($success);
+      if ($debug) {
+        print 'Success: ' . join(', ', $success) . "\n";
+      }
       db_query("DELETE FROM {cbisimport_queue} WHERE pid IN ({$plc})", $success);
     }
     if (!empty($fail)) {
       $plc = db_placeholders($fail);
+      if ($debug) {
+        print 'Fail: ' . join(', ', $fail) . "\n";
+      }
       db_query("UPDATE {cbisimport_queue} SET fail_count = fail_count + 1 WHERE pid IN ({$plc})", $fail);
     }
   }
@@ -364,6 +401,38 @@ function _cbisimport_add_category(&$categories, $category) {
   }
 }
 
+function cbisimport_category_is_instance_of($category, $id) {
+  $instance = $category->Id == $id;
+
+  if (!$instance) {
+    $categories = cbisimport_get_categories();
+    $category = isset($categories[$category->Id]) ? $categories[$category->Id] : NULL;
+    while (!$instance && $category) {
+      $instance = $category->Parent == $id;
+      $category = isset($categories[$category->Parent]) ? $categories[$category->Parent] : NULL;
+    }
+  }
+  return $instance;
+}
+
+function cbisimport_should_import_category($category) {
+  $categories = variable_get('cbisimport_categories', array());
+  $import = FALSE;
+
+  if (empty($categories)) {
+    $import = TRUE;
+  }
+  else {
+    foreach ($categories as $cat) {
+      if ($cat && cbisimport_category_is_instance_of($category, $cat)) {
+        $import = TRUE;
+        break;
+      }
+    }
+  }
+  return $import;
+}
+
 /**
  * Fetches a list of templates from CBIS.
  *
@@ -426,14 +495,17 @@ function cbisimport_product_recieved($product) {
     $o->Expanded = cbisimport_expand_occasion($o);
   }
 
-  $info->current = db_fetch_array(db_query("SELECT * FROM {cbisimport_product} WHERE pid=%d", array(
+  $info->current = db_fetch_array(db_query("SELECT * FROM {cbisimport_product} WHERE pid=%d AND language=%d", array(
     ':pid' => $product['Id'],
+    ':language' => $product['LanguageId'],
   )));
-  $info->current['data'] = unserialize($info->current['data']);
   if ($info->current) {
+    $info->current['data'] = unserialize($info->current['data']);
+
     // Get node mappings for the product
-    $res = db_query("SELECT `oid`, subid, nid FROM {cbisimport_product_node} WHERE pid=%d", array(
+    $res = db_query("SELECT `oid`, subid, nid FROM {cbisimport_product_node} WHERE pid=%d AND language=%d", array(
       ':pid' => $product['Id'],
+      ':language' => $product['LanguageId'],
     ));
     while ($mapping = db_fetch_array($res)) {
       $info->mappings[$mapping['oid']][$mapping['subid']] = $mapping['nid'];
@@ -472,55 +544,57 @@ function cbisimport_product_occasions($id) {
 function cbisimport_product_write($product, $update=FALSE) {
   $entry = array(
     'pid' => $product['Id'],
+    'language' => $product['LanguageId'],
     'name' => $product['Name'],
     'template' => $product['TemplateId'],
     'updated' => $product['PublishedDate'], // TODO: Exchange as soon as the API exposes mod-time.
     'data' => serialize($product),
   );
-  drupal_write_record('cbisimport_product', $entry, $update ? array('pid') : NULL);
+  drupal_write_record('cbisimport_product', $entry, $update ? array('pid', 'language') : array());
 
-  $occasions = cbisimport_product_occasions($product['Id']);
-  $delete = array();
-  $update = array();
-  $add = array();
-  foreach (array_keys($occasions) as $id) {
-    if (!isset($product['Occasions'][$id])) {
-      $delete[] = $id;
-      module_invoke_all('cbisimport_deleting_occasion', $occasions[$id], $product);
+  // Letting the swedish language version take responsibility for occasions.
+  if ($product['LanguageId'] == CBIS_LANGUAGE_SV) {
+    $occasions = cbisimport_product_occasions($product['Id']);
+    $delete = array();
+    $update = array();
+    $add = array();
+    foreach (array_keys($occasions) as $id) {
+      if (!isset($product['Occasions'][$id])) {
+        $delete[] = $id;
+        module_invoke_all('cbisimport_deleting_occasion', $occasions[$id], $product);
+      }
+      else {
+        $update[] = $id;
+      }
     }
-    else {
-      $update[] = $id;
+    foreach (array_keys($product['Occasions']) as $id) {
+      if (!isset($occasions[$id])) {
+        $add[] = $id;
+      }
+    }
+
+    // Delete old occasions
+    if (!empty($delete)) {
+      db_query(sprintf('DELETE FROM {cbisimport_product_occasion} WHERE `oid` IN(%s)',
+        db_placeholders($delete)), $delete);
+    }
+
+    // Add new occasions
+    foreach ($add as $id) {
+      $record = _cbisimport_occasion_record($product['Occasions'][$id]);
+      if ($record['oid'] && $record['pid'] && $record['start_date'] && $record['end_date']) {
+        module_invoke_all('cbisimport_adding_occasion', $record, $product);
+        drupal_write_record('cbisimport_product_occasion', $record);
+      }
+    }
+
+    // Update existing occasions
+    foreach ($update as $id) {
+      $record = _cbisimport_occasion_record($product['Occasions'][$id]);
+      module_invoke_all('cbisimport_updating_occasion', $record, $product);
+      drupal_write_record('cbisimport_product_occasion', $record, array('oid'));
     }
   }
-  foreach (array_keys($product['Occasions']) as $id) {
-    if (!isset($occasions[$id])) {
-      $add[] = $id;
-    }
-  }
-
-  // Delete old occasions
-  if (!empty($delete)) {
-    db_query(sprintf('DELETE FROM {cbisimport_product_occasion} WHERE `oid` IN(%s)',
-      db_placeholders($delete)), $delete);
-  }
-
-  // Add new occasions
-  foreach ($add as $id) {
-    $record = _cbisimport_occasion_record($product['Occasions'][$id]);
-    if ($record['oid'] && $record['pid'] && $record['start_date'] && $record['end_date']) {
-      module_invoke_all('cbisimport_adding_occasion', $record, $product);
-      drupal_write_record('cbisimport_product_occasion', $record);
-    }
-  }
-
-  // Update existing occasions
-  foreach ($update as $id) {
-    $record = _cbisimport_occasion_record($product['Occasions'][$id]);
-    module_invoke_all('cbisimport_updating_occasion', $record, $product);
-    drupal_write_record('cbisimport_product_occasion', $record, array('oid'));
-  }
-
-  drupal_write_record('cbisimport_product', $entry, $update ? array('pid') : array());
 }
 
 function _cbisimport_occasion_record($occasion) {
@@ -563,8 +637,8 @@ function cbisimport_expand_occasion($occasion) {
     $days[$daymap[strtolower($day)]] = TRUE;
   }
 
-  $day = $r['start_date'];
-  while ($day <= $r['end_date']) {
+  $day = max($r['start_date'], time());
+  while ($day <= $r['end_date'] && count($occasions) < 20) {
     $wd = date('w', $day);
     if (isset($days[$wd])) {
       $occasions[] = array(
@@ -599,6 +673,8 @@ function cbisimport_mapping_exists($info, $oid = 0, $subid = 0) {
  *
  * @param int $pid
  *  Product id.
+ * @param int $language
+ *  Product language.
  * @param int $nid
  *  Node id.
  * @param int $oid
@@ -607,9 +683,10 @@ function cbisimport_mapping_exists($info, $oid = 0, $subid = 0) {
  *  Optional. Sub-identifier. Defaults to 0.
  * @return void
  */
-function cbisimport_mapping_add($pid, $nid, $oid = 0, $subid = 0) {
+function cbisimport_mapping_add($pid, $language, $nid, $oid = 0, $subid = 0) {
   $values = array(
     'pid' => $pid,
+    'language' => $language,
     'oid' => $oid,
     'subid' => $subid,
     'nid' => $nid,
@@ -628,10 +705,11 @@ function cbisimport_mapping_add($pid, $nid, $oid = 0, $subid = 0) {
  *  Optional. Sub-identifier. Defaults to 0.
  * @return void
  */
-function cbisimport_mapping_remove($pid, $oid = 0, $subid = 0) {
+function cbisimport_mapping_remove($pid, $language, $oid = 0, $subid = 0) {
   db_query("DELETE FROM {cbisimport_product_node}
-    WHERE pid = %d AND `oid`= %d AND subid = %d", array(
+    WHERE pid = %d AND language=%d AND `oid`= %d AND subid = %d", array(
       ':pid' => $pid,
+      ':language' => $language,
       ':oid' => $oid,
       ':subid' => $subid,
     ));
