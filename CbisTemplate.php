@@ -6,6 +6,7 @@
  * @package cbisimport
  */
 class CbisTemplate {
+  const GENERAL = 91;
   private static $templates = array();
   private $name;
   private $attributes;
@@ -42,14 +43,28 @@ class CbisTemplate {
    * @return void
    */
   private function loadDefinition($id) {
-    $template = cbisimport_get_template($id);
-    if ($template) {
-      $this->name = $template->Name;
-      foreach (cbisimport_array($template->Attributes->TemplateAttribute) as $attribute) {
-        $this->attributes[$attribute->AttributeId] = $attribute;
+    if ($id != CbisTemplate::GENERAL) {
+      $template = cbisimport_get_template($id);
+      if ($template) {
+        $this->name = $template->Name;
+        foreach (cbisimport_array($template->Attributes->TemplateAttribute) as $attribute) {
+          $this->attributes[$attribute->AttributeId] = $attribute;
+        }
       }
+      $this->template = $template;
     }
-    $this->template = $template;
+    else {
+      $this->name = t('General');
+      $templates = cbisimport_get_templates();
+      foreach ($templates as $template) {
+        foreach (cbisimport_array($template->Attributes->TemplateAttribute) as $attribute) {
+          $this->attributes[$attribute->AttributeId] = $attribute;
+        }
+      }
+      $this->template = (object)array(
+        'Name' => $this->name,
+      );
+    }
   }
 
   /**
