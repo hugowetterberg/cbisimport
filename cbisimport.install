@@ -12,6 +12,35 @@ function cbisimport_uninstall() {
 function cbisimport_schema() {
   $schema = array();
 
+  $schema['cbisimport_queue'] = array(
+    'description' => 'Update queue from CBIS',
+    'fields' => array(
+      'pid' => array(
+        'description' => t('The primary identifier for a product.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'updated' => array(
+        'description' => t('The timestamp for when the product was updated.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'fail_count' => array(
+        'description' => t('The number of times that fetching has failed.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0,
+      ),
+    ),
+    'primary key' => array('pid'),
+    'indexes' => array(
+      'product' => array('fail_count', 'updated'),
+    ),
+  );
+
   $schema['cbisimport_product'] = array(
     'description' => 'Stores products from CBIS',
     'fields' => array(

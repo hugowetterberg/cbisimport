@@ -90,6 +90,49 @@ function cbisimport_client($service) {
 }
 
 /**
+ * Implementation of hook_cron().
+ */
+function cbisimport_cron() {
+  $since = variable_get('cbisimport_last_updated', 0);
+  if ($since < strtotime('-1 day')) {
+    $update_status = cbisimport_product_update_status();
+    $last_update = $since;
+    $updates = array();
+    foreach ($update_status as $id => $updated) {
+      if ($updated > $since) {
+        $last_update = max($updated, $since);
+        $updates[$id] = $updated;
+        cbisimport_queue_update($id, $updated);
+      }
+    }
+    variable_set('cbisimport_last_updated', $last_update);
+  }
+  else {
+    $res = db_query_range("SELECT * FROM {cbisimport_queue} WHERE fail_count=0", 0, 10);
+    $success = array();
+    $fail = array();
+    while ($qi = db_fetch_array($res)) {
+      $product = CbisTemplate::sanitize(cbisimport_get_product($qi['pid']));
+      if ($product) {
+        cbisimport_product_recieved($product);
+        $success[] = $qi['pid'];
+      }
+      else {
+        $fail[] = $qi['pid'];
+      }
+    }
+    if (!empty($success)) {
+      $plc = db_placeholders($success);
+      db_query("DELETE FROM {cbisimport_queue} WHERE pid IN ({$plc})", $success);
+    }
+    if (!empty($fail)) {
+      $plc = db_placeholders($fail);
+      db_query("UPDATE {cbisimport_queue} SET fail_count = fail_count + 1 WHERE pid IN ({$plc})", $fail);
+    }
+  }
+}
+
+/**
  * Gets products from CBIS.
  *
  * @param array $options
@@ -172,6 +215,33 @@ function cbisimport_product_update_status() {
     $updates[$up->ProductId] = strtotime($up->LastUpdated, time());
   }
   return $updates;
+}
+
+/**
+ * Queues a update for a product.
+ *
+ * @param int $id
+ * @param int $updated
+ * @return void
+ */
+function cbisimport_queue_update($id, $updated) {
+  $queued_updated = db_result(db_query('SELECT updated FROM {cbisimport_queue} WHERE pid = %d', array(
+    ':pid' => $id,
+  )));
+  $update = NULL;
+  if ($queued_updated) {
+    $update = array('pid');
+  }
+  $record = array(
+    'pid' => $id,
+    'updated' => $updated,
+    'fail_count' => 0,
+  );
+  // Only queue a update if we don't already have it queued or if the updated
+  // timestamp is later than what's already in the queue.
+  if (!$update || $queued_updated < $updated) {
+    drupal_write_record('cbisimport_queue', $record, $update);
+  }
 }
 
 /**
@@ -449,6 +519,8 @@ function cbisimport_product_write($product, $update=FALSE) {
     module_invoke_all('cbisimport_updating_occasion', $record, $product);
     drupal_write_record('cbisimport_product_occasion', $record, array('oid'));
   }
+
+  drupal_write_record('cbisimport_product', $entry, $update ? array('pid') : array());
 }
 
 function _cbisimport_occasion_record($occasion) {

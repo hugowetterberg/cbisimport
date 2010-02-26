@@ -45,8 +45,12 @@ function cbisnode_cbisimport_saving_product($info) {
   global $user;
   $product = $info->product;
   $template = CbisTemplate::getTemplate($product['TemplateId']);
-
   $event = $template->isInstanceOf(81);
+  $tags = array();
+  foreach (cbisimport_array($product['Categories']->Category) as $category) {
+    $event = $event || $category->DefaultTemplateId == 81;
+    $tags = array_merge($tags, cbisimport_category_tags($category->Id));
+  }
 
   $attr = $product['Attributes'];
   $node = array(
@@ -56,6 +60,12 @@ function cbisnode_cbisimport_saving_product($info) {
     'teaser' => $attr['Introduction'],
     'body' => theme('cbis_product', $product),
     'uid' => $user->uid,
+    'language' => cbisimport_language_code($product['LanguageId']),
+    'taxonomy' => array(
+      'tags' => array(
+        '1' => join(', ', $tags),
+      )
+    ),
   );
 
   if (module_exists('simple_geo')) {
