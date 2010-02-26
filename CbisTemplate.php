@@ -162,6 +162,15 @@ class CbisTemplate {
           case 'LocationDistances':
             $attributes[$def->AttributeSystemName] = cbisimport_array($attribute->Value->LocationDistance);
             break;
+          case 'String':
+            $text = $attribute->Value->Data;
+            $text = preg_replace('/<br\/?>/', "\n", $text);
+            $text = preg_replace('/\n{3,}/', "\n\n", $text);
+            $text = strip_tags($text, '<a>');
+            $text = html_entity_decode($text);
+            $text = trim($text);
+            $attributes[$def->AttributeSystemName] = $text; 
+            break;
           default:
             if (isset($attribute->Value->Data)) {
               $attributes[$def->AttributeSystemName] = $attribute->Value->Data;
