@@ -229,10 +229,34 @@ function cbisimport_get_product($id, $options=array()) {
   );
 
   $options = cbisimport_merge_recursive($defaults, $options);
-  $client = cbisimport_client('Products');
-  $res = $client->GetById($options);
-  $product = $res->GetByIdResult;
-  $product->LanguageId = $options['languageId'];
+  $cache_policy = variable_get('cbisimport_product_cache', 'off');
+  $path = file_directory_path() . '/cbis_import_cache';
+
+  $product = NULL;
+  if ($cache_policy !== 'off') {
+    $option_string = http_build_query($options, NULL, '&');
+    $hash = md5($option_string);
+    $key = $id . '-' . $hash;
+    if (is_file($path . '/' . $key)) {
+      $data = file_get_contents($path . '/' . $key);
+      $product = unserialize($data);
+    }
+  }
+
+  if (!$product) {
+    $client = cbisimport_client('Products');
+    $res = $client->GetById($options);
+    $product = $res->GetByIdResult;
+    $product->LanguageId = $options['languageId'];
+
+    if ($cache_policy == 'on') {
+      if (file_check_directory($path, TRUE)) {
+        $data = serialize($product);
+        file_put_contents($path . '/' . $key, $data);
+      }
+    }
+  }
+
   return $product;
 }
 

@@ -27,6 +27,25 @@ function cbisimport_settings_form() {
     '#default_value' => variable_get('cbisimport_api_key', ''),
   );
 
+  $form['cbisimport_product_cache'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Enable'),
+    '#default_value' => -1,
+  );
+
+  $form['cbisimport_product_cache'] = array(
+    '#type' => 'select',
+    '#title' => t('Product cache'),
+    '#multiple' => FALSE,
+    '#description' => t('The description appears usually below the item.'),
+    '#options' => array(
+      'off'   => t('Don\'t use cache'),
+      'on'    => t('Build and use the cache'),
+      'read'  => t('Use the the cache'),
+    ),
+    '#default_value' => variable_get('cbisimport_product_cache', 'off'),
+  );
+
   $form['cbisimport_categories'] = array(
     '#type' => 'checkboxes',
     '#title' => t('CBIS import categories'),
