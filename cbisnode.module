@@ -80,15 +80,17 @@ function cbisnode_cbisimport_saving_product($info) {
 
   switch ($type) {
     case 'event':
-      foreach ($product['Occasions'] as $occasion) {
-        foreach ($occasion->Expanded as $e) {
-          $node['nid'] = cbisimport_mapping_exists($info, $occasion->Id, $e[0]);
-          if (!$node['nid']) {
-            cbisnode_api_create_event($node, $info, $occasion, $e);
-          }
-          else {
-            cbisnode_api_update_event($node, $info, $occasion, $e);
-          }
+      $has_occasions = FALSE;
+      foreach ($info->product['Occasions'] as $occasion) {
+        $has_occasions = $has_occasions || !empty($occasion->Expanded);
+      }
+      if ($has_occasions) {
+        $node['nid'] = cbisimport_mapping_exists($info);
+        if (!$node['nid']) {
+          cbisnode_api_create_event($node, $info);
+        }
+        else {
+          cbisnode_api_update_event($node, $info);
         }
       }
       break;
@@ -115,7 +117,7 @@ function cbisnode_cbisimport_saving_product($info) {
   // TODO: Delete stuff that've been removed.
 }
 
-function cbisnode_api_create_post($node_data, $info, $occasion, $interval) {
+function cbisnode_api_create_post($node_data, $info) {
   $node = (object)$node_data;
 
   module_invoke_all('cbisnode_api_before_create_post', $node, $info, $occasion, $interval);
@@ -127,7 +129,7 @@ function cbisnode_api_create_post($node_data, $info, $occasion, $interval) {
   cbisimport_mapping_add($info->product['Id'], $info->product['LanguageId'], $node->nid, $occasion->Id, $interval[0]);
 }
 
-function cbisnode_api_update_post($node_data, $info, $occasion, $interval) {
+function cbisnode_api_update_post($node_data, $info) {
   $current = get_object_vars(node_load($node_data['nid']));
   $node = (object)array_merge($current, $node_data);
 
@@ -138,7 +140,7 @@ function cbisnode_api_update_post($node_data, $info, $occasion, $interval) {
   module_invoke_all('cbisnode_api_post_saved', $node, $info, $occasion, $interval);
 }
 
-function cbisnode_api_create_event($node_data, $info, $occasion, $interval) {
+function cbisnode_api_create_event($node_data, $info) {
   $node = (object)$node_data;
 
   module_invoke_all('cbisnode_api_before_create_event', $node, $info, $occasion, $interval);
@@ -150,7 +152,7 @@ function cbisnode_api_create_event($node_data, $info, $occasion, $interval) {
   cbisimport_mapping_add($info->product['Id'], $info->product['LanguageId'], $node->nid, $occasion->Id, $interval[0]);
 }
 
-function cbisnode_api_update_event($node_data, $info, $occasion, $interval) {
+function cbisnode_api_update_event($node_data, $info) {
   $current = get_object_vars(node_load($node_data['nid']));
   $node = (object)array_merge($current, $node_data);
 
