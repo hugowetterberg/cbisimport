@@ -51,6 +51,13 @@ function cbisimport_menu() {
     'access arguments' => array('administer cbis import'),
   );
 
+  $menu['cbisimport/trigger'] = array(
+    'title' => 'CBIS Trigger Import',
+    'page callback' => 'cbisimport_trigger_import_page',
+    'type' => MENU_NORMAL_ITEM,
+    'access arguments' => array('access content'),
+  );
+
   $menu['webhooks/cbisimport/product/%'] = array(
     'page callback' => '_cbisimport_product_updated_webhook',
     'page arguments' => array(3),
@@ -94,9 +101,17 @@ function cbisimport_client($service) {
 }
 
 /**
+ * Menu system callback for the trigger import page.
+ */
+function cbisimport_trigger_import_page() {
+  return nl2br(cbisimport_cron(TRUE));
+}
+
+/**
  * Implementation of hook_cron().
  */
-function cbisimport_cron($debug) {
+function cbisimport_cron($debug=FALSE) {
+  $output = $debug ? '' : NULL;
   $since = variable_get('cbisimport_last_updated', 0);
   if ($since < strtotime('-1 day')) {
     $update_status = cbisimport_product_update_status();
@@ -137,7 +152,7 @@ function cbisimport_cron($debug) {
             break;
           }
           if ($debug) {
-            print "{$product['Id']} " . cbisimport_language_code($language) . ": {$product['Name']} \n";
+            $output .= "{$product['Id']} " . cbisimport_language_code($language) . ": {$product['Name']} \n";
           }
           cbisimport_product_recieved($product);
         }
@@ -155,18 +170,20 @@ function cbisimport_cron($debug) {
     if (!empty($success)) {
       $plc = db_placeholders($success);
       if ($debug) {
-        print 'Success: ' . join(', ', $success) . "\n";
+        $output .= 'Success: ' . join(', ', $success) . "\n";
       }
       db_query("DELETE FROM {cbisimport_queue} WHERE pid IN ({$plc})", $success);
     }
     if (!empty($fail)) {
       $plc = db_placeholders($fail);
       if ($debug) {
-        print 'Fail: ' . join(', ', $fail) . "\n";
+        $output .= 'Fail: ' . join(', ', $fail) . "\n";
       }
       db_query("UPDATE {cbisimport_queue} SET fail_count = fail_count + 1 WHERE pid IN ({$plc})", $fail);
     }
   }
+
+  return $output;
 }
 
 /**
