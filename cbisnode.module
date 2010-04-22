@@ -48,12 +48,10 @@ function cbisnode_cbisimport_saving_product($info) {
   $type = $template->isInstanceOf(81) ? 'event' : 'location';
   $tags = array();
   foreach (cbisimport_array($product['Categories']->Category) as $category) {
-    if (cbisimport_category_is_instance_of($category, 2457)) { // Event
+    if (cbisimport_category_is_instance_of($category, 2457) || cbisimport_category_is_instance_of($category, 2395)) { // Event
       $type = 'event';
-    } else if (cbisimport_category_is_instance_of($category, 2395)) { // Paket
-      $type = 'post';
     }
-    $tags = array_merge($tags, cbisimport_category_tags($category->Id));
+    $tags = array_merge($tags, cbisimport_category_tags($category->Id, 2));//$product['LanguageId']));
   }
 
   $attr = $product['Attributes'];
@@ -78,6 +76,8 @@ function cbisnode_cbisimport_saving_product($info) {
     }
   }
 
+  $node['nid'] = cbisimport_mapping_exists($info);
+
   switch ($type) {
     case 'event':
       $has_occasions = FALSE;
@@ -85,7 +85,6 @@ function cbisnode_cbisimport_saving_product($info) {
         $has_occasions = $has_occasions || !empty($occasion->Expanded);
       }
       if ($has_occasions) {
-        $node['nid'] = cbisimport_mapping_exists($info);
         if (!$node['nid']) {
           cbisnode_api_create_event($node, $info);
         }

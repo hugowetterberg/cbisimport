@@ -112,14 +112,20 @@ function cbisimport_trigger_import_page() {
  */
 function cbisimport_cron($debug=FALSE) {
   $output = $debug ? '' : NULL;
-  $since = variable_get('cbisimport_last_updated', 0);
-  if ($since < strtotime('-1 day')) {
+
+  $last_update = variable_get('cbisimport_last_update_check', 0);
+  if ($last_update < strtotime('-1 day')) {
+    if ($debug) {
+      $output .= "Checking update status\n";
+    }
+    variable_set('cbisimport_last_update_check', time());
+
     $update_status = cbisimport_product_update_status();
-    $last_update = $since;
     $updates = array();
+    $last_update = variable_get('cbisimport_last_updated', 0);
     foreach ($update_status as $id => $updated) {
       if ($updated > $since) {
-        $last_update = max($updated, $since);
+        $last_update = max($updated, $last_update);
         $updates[$id] = $updated;
         cbisimport_queue_update($id, $updated);
       }
@@ -181,6 +187,11 @@ function cbisimport_cron($debug=FALSE) {
       }
       db_query("UPDATE {cbisimport_queue} SET fail_count = fail_count + 1 WHERE pid IN ({$plc})", $fail);
     }
+  }
+
+  if (!empty($_GET['t'])) {
+    print $output;
+    die;
   }
 
   return $output;
@@ -373,13 +384,17 @@ function cbisimport_merge_recursive() {
  * @param int $cid
  * @return array
  */
-function cbisimport_category_tags($cid) {
-  $categories = cbisimport_get_categories();
+function cbisimport_category_tags($cid, $language) {
+  $categories = cbisimport_get_categories($language);
   $category = !empty($categories[$cid]) ? $categories[$cid] : NULL;
   $tags = array();
   while ($category) {
     $taggified = preg_split('/[\/\s]+/', drupal_strtolower(trim($category->Name)));
-    $tags = array_merge($taggified, $tags);
+    foreach ($taggified as $tag) {
+      if (drupal_strlen($tag) > 1) {
+        $tags[] = $tag;
+      }
+    }
     if ($category->Parent && !empty($categories[$category->Parent])) {
       $category = $categories[$category->Parent];
     }
@@ -395,19 +410,28 @@ function cbisimport_category_tags($cid) {
  *
  * @return array
  */
-function cbisimport_get_categories() {
-  static $categories;
-  $cache_key = 'cbisimport:categories';
+function cbisimport_get_categories($language = 1) {
+  static $dir;
+  $cache_key = 'cbisimport:categories:' . $language;
+  $catergories = array();
 
-  if (!$categories && ($cache = cache_get($cache_key)) && isset($cache->data)) {
-    $categories = $cache->data;
+  if (!isset($dir)) {
+    $dir = array();
+  }
+
+  // if (!$categories && ($cache = cache_get($cache_key)) && isset($cache->data)) {
+  //   $dir[$language] = $cache->data;
+  // }
+
+  if (isset($dir[$language])) {
+    $categories = $dir[$language];
   }
 
   if (!$categories) {
     $client = cbisimport_client('Categories');
     $categories = array();
     $result = $client->ListAll(array(
-      'languageId' => 1,
+      'languageId' => $language,
       'parentCategoryId' => 0,
     ));
     if ($result) {
@@ -417,6 +441,7 @@ function cbisimport_get_categories() {
       }
     }
     cache_set($cache_key, $categories);
+    $dir[$language] = $categories;
   }
 
   return $categories;
