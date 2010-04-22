@@ -94,10 +94,10 @@ function cbisimport_enable() {
  *  The service that is to be accessed.
  * @return CbisClient
  */
-function cbisimport_client($service) {
+function cbisimport_client($service, $options = array()) {
   return new CbisClient($service, array(
     'encoding'=>'UTF-8',
-  ));
+  ) + $options);
 }
 
 /**
