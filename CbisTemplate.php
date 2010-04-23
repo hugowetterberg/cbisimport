@@ -99,12 +99,12 @@ class CbisTemplate {
     if (is_array($product)) {
       $result = array();
       foreach ($product as $p) {
-        $tpl = self::getTemplate($p->TemplateId);
+        $tpl = self::getTemplate(CbisTemplate::GENERAL);
         $result[$product->Id] = $tpl->sanitizeProduct($p);
       }
     }
     else {
-      $tpl = self::getTemplate($product->TemplateId);
+      $tpl = self::getTemplate(CbisTemplate::GENERAL);
       $result = $tpl->sanitizeProduct($product);
     }
     return $result;
