@@ -23,6 +23,40 @@ function cbisnode_theme() {
 }
 
 /**
+ * Implementation of hook_nodeapi().
+ *
+ * @param stdClass &$node The node the action is being performed on.
+ * @param string $op What kind of action is being performed.
+ * @param bool|array $a3
+ *  If $op is "view" True is passed if the node is viewed as a node
+ *  If $op is "validate" the form that should be validated is passed as an array
+ * @param bool $page If $op is "view" True is passed if the node is viewed as a page
+ *
+ * @return void|stdClass
+ *  If $op is "load" the function should return an array containing pairs of
+ *  fields => values to be merged into the node object.
+ **/
+function cbisnode_nodeapi(&$node, $op, $a3=Null, $page=Null) {
+  switch ($op) {
+    // The node is about to be loaded from the database. This hook can be used to load additional data at this time.
+    case 'load':
+      $data = array();
+      $res = db_query("SELECT p.*
+        FROM {cbisimport_product_node} AS pn
+        INNER JOIN {cbisimport_product} AS p ON (p.pid = pn.pid AND p.language = pn.language)
+        WHERE pn.nid = %d", array(
+          ':nid' => $node->nid,
+        ));
+      if (($product = db_fetch_array($res))) {
+        $product['data'] = unserialize($product['data']);
+        $data['cbis_product'] = $product;
+      }
+      return $data;
+      break;
+  }
+}
+
+/**
  * Add template suggestions based on the CBIS template.
  *
  * @param array $vars
