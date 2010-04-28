@@ -196,6 +196,9 @@ class CbisTemplate {
             break;
         }
       }
+      else {
+        $attributes['_unknown'][] = $attribute;
+      }
     }
     return $attributes;
   }
