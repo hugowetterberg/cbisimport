@@ -4,6 +4,7 @@
 define('CBIS_LANGUAGE_SV', 1);
 define('CBIS_LANGUAGE_EN', 2);
 define('CBIS_LANGUAGE_DE', 3);
+define('CBIS_LANGUAGE_DA', 4);
 
 /**
  * Implementation of hook_perm().
@@ -30,6 +31,9 @@ function cbisimport_language_code($id) {
       break;
     case CBIS_LANGUAGE_DE:
       $code = 'de';
+      break;
+    case CBIS_LANGUAGE_DA:
+      $code = 'da';
       break;
   }
   return $code;
@@ -137,7 +141,8 @@ function cbisimport_cron($debug=FALSE) {
     $success = array();
     $fail = array();
     while ($qi = db_fetch_array($res)) {
-      $languages = array(CBIS_LANGUAGE_SV, CBIS_LANGUAGE_EN, CBIS_LANGUAGE_DE);
+      $languages = array(CBIS_LANGUAGE_SV, CBIS_LANGUAGE_EN,
+        CBIS_LANGUAGE_DE, CBIS_LANGUAGE_DA);
 
       $import = FALSE;
       $fine = TRUE;
