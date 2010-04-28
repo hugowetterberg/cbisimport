@@ -246,6 +246,67 @@ function cbisimport_get_products($options=array(), $sanitize=TRUE) {
 }
 
 /**
+ * Fetches a list of categories from CBIS.
+ *
+ * @return array
+ */
+function cbisimport_get_geotree($language = 1) {
+  static $dir;
+  $cache_key = 'cbisimport:geotree:' . $language;
+  $geo = array();
+
+  if (!isset($dir)) {
+    $dir = array();
+  }
+
+  if (isset($dir[$language])) {
+    $geo = $dir[$language];
+  }
+
+  if (FALSE && !$geo && ($cache = cache_get($cache_key)) && isset($cache->data)) {
+    $geo = $dir[$language] = $cache->data;
+  }
+
+  if (!$geo) {
+    $client = cbisimport_client('Products');
+    $geo = array();
+    $result = $client->GetGeoTree(array(
+      'language' => $language,
+    ));
+    if ($result) {
+      foreach (cbisimport_array($result->GetGeoTreeResult->Nodes->TreeNodeOfGeoNode) as $root) {
+        $root->Data->Parent = 0;
+        _cbisimport_add_geonode($geo, $root);
+      }
+    }
+    cache_set($cache_key, $geo);
+    $dir[$language] = $geo;
+  }
+
+  return $geo;
+}
+
+/**
+ * Flattens the geo tree from CBIS.
+ *
+ * @param array $geonodes
+ * @param array $geonode
+ * @return void
+ */
+function _cbisimport_add_geonode(&$geonodes, $geonode) {
+  $geonodes[$geonode->Data->Id] = $geonode->Data;
+  $geonode->Data->Children = array();
+  foreach(cbisimport_array($geonode->Children->TreeNodeOfGeoNode) as $child) {
+    if ($child) {
+      $geonodes[$geonode->Data->Id]->Children[] = $child->Data->Id;
+      $geonodes[$child->Data->Id] = $child->Data;
+      $child->Data->Parent = $geonode->Data->Id;
+      _cbisimport_add_geonode($geonodes, $child);
+    }
+  }
+}
+
+/**
  * Gets a product from CBIS by id.
  *
  * @param array $options
