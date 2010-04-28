@@ -485,9 +485,9 @@ function cbisimport_get_categories($language = 1) {
     $dir = array();
   }
 
-  // if (!$categories && ($cache = cache_get($cache_key)) && isset($cache->data)) {
-  //   $dir[$language] = $cache->data;
-  // }
+  if (!$categories && ($cache = cache_get($cache_key)) && isset($cache->data)) {
+    $dir[$language] = $cache->data;
+  }
 
   if (isset($dir[$language])) {
     $categories = $dir[$language];
