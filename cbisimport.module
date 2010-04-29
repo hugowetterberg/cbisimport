@@ -39,6 +39,11 @@ function cbisimport_language_code($id) {
   return $code;
 }
 
+function cbisimport_available_languages() {
+  return array(CBIS_LANGUAGE_SV, CBIS_LANGUAGE_EN,
+    CBIS_LANGUAGE_DE, CBIS_LANGUAGE_DA);
+}
+
 /**
  * Implementation of hook_menu().
  */
@@ -141,8 +146,7 @@ function cbisimport_cron($debug=FALSE) {
     $success = array();
     $fail = array();
     while ($qi = db_fetch_array($res)) {
-      $languages = array(CBIS_LANGUAGE_SV, CBIS_LANGUAGE_EN,
-        CBIS_LANGUAGE_DE, CBIS_LANGUAGE_DA);
+      $languages = cbisimport_available_languages();
 
       $import = FALSE;
       $fine = TRUE;
@@ -250,20 +254,20 @@ function cbisimport_get_products($options=array(), $sanitize=TRUE) {
  *
  * @return array
  */
-function cbisimport_get_geotree($language = 1) {
+function cbisimport_get_geotree($language = 1, $reset = FALSE) {
   static $dir;
   $cache_key = 'cbisimport:geotree:' . $language;
-  $geo = array();
+  $geo = NULL;
 
   if (!isset($dir)) {
     $dir = array();
   }
 
-  if (isset($dir[$language])) {
+  if (!$reset && isset($dir[$language])) {
     $geo = $dir[$language];
   }
 
-  if (FALSE && !$geo && ($cache = cache_get($cache_key)) && isset($cache->data)) {
+  if (!$reset && !$geo && ($cache = cache_get($cache_key)) && isset($cache->data)) {
     $geo = $dir[$language] = $cache->data;
   }
 
@@ -476,20 +480,20 @@ function cbisimport_category_tags($cid, $language) {
  *
  * @return array
  */
-function cbisimport_get_categories($language = 1) {
+function cbisimport_get_categories($language = 1, $refresh = FALSE) {
   static $dir;
   $cache_key = 'cbisimport:categories:' . $language;
-  $catergories = array();
+  $catergories = NULL;
 
   if (!isset($dir)) {
     $dir = array();
   }
 
-  if (!$categories && ($cache = cache_get($cache_key)) && isset($cache->data)) {
-    $dir[$language] = $cache->data;
+  if (!$refresh && !$categories && ($cache = cache_get($cache_key)) && isset($cache->data)) {
+    $categories = $dir[$language] = $cache->data;
   }
 
-  if (isset($dir[$language])) {
+  if (!$refresh && !$categories && isset($dir[$language])) {
     $categories = $dir[$language];
   }
 

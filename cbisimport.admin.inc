@@ -57,6 +57,11 @@ function cbisimport_settings_form() {
   $url = variable_get('cbisimport_api_url', '');
   if (!empty($url)) {
     try {
+      foreach (cbisimport_available_languages() AS $lang) {
+        cbisimport_get_categories($lang, TRUE);
+        cbisimport_get_geotree($lang, TRUE);
+      }
+
       $categories = cbisimport_get_categories();
       foreach ($categories as $category) {
         if ($category->Parent == 0) {
