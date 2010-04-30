@@ -773,14 +773,17 @@ function cbisimport_expand_occasion($occasion) {
     $days[$daymap[strtolower($day)]] = TRUE;
   }
 
-  $day = max($r['start_date'], time());
+  $today = strtotime(date('Y-m-d\T00:00:00'));
+  $day = $r['start_date'];
   while ($day <= $r['end_date'] && count($occasions) < 20) {
-    $wd = date('w', $day);
-    if (isset($days[$wd])) {
-      $occasions[] = array(
-        $day + $r['start_time'],
-        $day + $r['end_time'],
-      );
+    if ($day >= $today) {
+      $wd = date('w', $day);
+      if (isset($days[$wd])) {
+        $occasions[] = array(
+          $day + $r['start_time'],
+          $day + $r['end_time'],
+        );
+      }
     }
     $day += 60 * 60 * 24;
   }
