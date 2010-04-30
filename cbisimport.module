@@ -60,6 +60,16 @@ function cbisimport_menu() {
     'access arguments' => array('administer cbis import'),
   );
 
+  $menu['admin/settings/cbisimport/category-tags/%'] = array(
+    'title' => 'CBIS Import category tags',
+    'description' => 'Settings for the import from CBIS',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('cbisimport_category_tags_form', 4),
+    'file' => 'cbisimport.admin.inc',
+    'type' => MENU_CALLBACK,
+    'access arguments' => array('administer cbis import'),
+  );
+
   $menu['cbisimport/trigger'] = array(
     'title' => 'CBIS Trigger Import',
     'page callback' => 'cbisimport_trigger_import_page',

@@ -9,6 +9,16 @@
 function cbisimport_settings_form() {
   $form = array();
 
+  foreach (cbisimport_available_languages() as $code) {
+    $form['edit_tags_for_' . $code] = array(
+      '#type' => 'item',
+      '#title' => t('Edit tags for @lang', array(
+        '@lang' => cbisimport_language_code($code),
+      )),
+      '#value' => l(t('Edit'), 'admin/settings/cbisimport/category-tags/' . $code),
+    );
+  }
+
   $form['cbisimport_api_url'] = array(
     '#type' => 'textfield',
     '#title' => t('API Url'),
@@ -75,4 +85,94 @@ function cbisimport_settings_form() {
   }
 
   return system_settings_form($form);
+}
+
+function cbisimport_category_tags_form($form_state, $language) {
+  $form = array(
+    '#pre_render' => array('cbisimport_category_tags_form_effects'),
+  );
+
+  $form['language'] = array(
+    '#type' => 'value',
+    '#value' => $language
+  );
+
+  $categories = cbisimport_get_categories($language);
+  $category_tags = db_result(db_query("SELECT tags FROM {cbisimport_category_tags} WHERE language = %d", array(
+    ':language' => $language,
+  )));
+  if ($category_tags) {
+    $category_tags = unserialize($category_tags);
+  }
+  else {
+    $category_tags = array();
+  }
+
+  foreach ($categories as $category) {
+    $name = _cbisimport_category_hierarchical_name($category, $categories);
+    $value = empty($category_tags[$category->Id]) ? '' : $category_tags[$category->Id];
+    $classes = array(
+      'cbis-category',
+      'category-id-' . $category->Id,
+      'category-parent-' . $category->Parent,
+    );
+    if (!empty($category->Children)) {
+      $classes[] = 'has-children';
+    }
+    $form['tags_' . $category->Id] = array(
+      '#attributes' => array(
+        'class' => join($classes, ' '),
+      ),
+      '#type' => 'textfield',
+      '#title' => '<span>' . join($name, '</span> / <span>') . '</span>',
+      '#default_value' => $value,
+      '#size' => 40,
+      '#maxlength' => 255,
+    );
+  }
+
+  $form['save'] = array(
+    '#type' => 'submit',
+    '#value' => t('Save'),
+  );
+
+  return $form;
+}
+
+function cbisimport_category_tags_form_submit($form, $form_state) {
+  $values = $form_state['values'];
+  $translations = array();
+  $language = $values['language'];
+
+  $categories = cbisimport_get_categories($language);
+  foreach ($categories as $category) {
+    if (!empty($values['tags_' . $category->Id])) {
+      $translations[$category->Id] = $values['tags_' . $category->Id];
+    }
+  }
+
+  $record = array(
+    'language' => $language,
+    'tags' => $translations,
+  );
+  $update = db_result(db_query("SELECT COUNT(language) FROM {cbisimport_category_tags} WHERE language = %d", array(
+    ':language' => $language,
+  ))) ? array('language') : array();
+  drupal_write_record('cbisimport_category_tags', $record, $update);
+
+  drupal_set_message(t('Category tag translations have been updated'));
+}
+
+function cbisimport_category_tags_form_effects($form) {
+  drupal_add_js(drupal_get_path('module', 'cbisimport') . '/js/categories.js');
+  return $form;
+}
+
+function _cbisimport_category_hierarchical_name($category, $categories) {
+  $name = array();
+  while ($category) {
+    $name[] = $category->Name;
+    $category = $category->Parent ? $categories[$category->Parent] : NULL;
+  }
+  return array_reverse($name);
 }

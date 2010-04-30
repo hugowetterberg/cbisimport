@@ -146,6 +146,25 @@ function cbisimport_schema() {
     ),
   );
 
+  $schema['cbisimport_category_tags'] = array(
+    'description' => 'Tag translations for cbis categories',
+    'fields' => array(
+      'language' => array(
+        'description' => t('The language for the tags.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'tags' => array(
+        'description' => t('Serialized tag data'),
+        'type' => 'text',
+        'size' => 'medium',
+        'serialize' => TRUE,
+      ),
+    ),
+    'primary key' => array('language'),
+  );
+
   $schema['cbisimport_product_node'] = array(
     'description' => 'Stores product occasions from CBIS',
     'fields' => array(
@@ -192,4 +211,29 @@ function cbisimport_schema() {
   );
 
   return $schema;
+}
+
+function cbisimport_update_6001() {
+  $ret = array();
+
+  db_create_table($ret, 'cbisimport_category_tags', array(
+    'description' => 'Tag translations for cbis categories',
+    'fields' => array(
+      'language' => array(
+        'description' => t('The language for the tags.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'tags' => array(
+        'description' => t('Serialized tag data'),
+        'type' => 'text',
+        'size' => 'medium',
+        'serialize' => TRUE,
+      ),
+    ),
+    'primary key' => array('language'),
+  ));
+
+  return $ret;
 }
