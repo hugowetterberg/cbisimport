@@ -773,9 +773,11 @@ function cbisimport_expand_occasion($occasion) {
     $days[$daymap[strtolower($day)]] = TRUE;
   }
 
-  $today = strtotime(date('Y-m-d\T00:00:00'));
+  $today = strtotime(date('Y-m-d\T00:00P'));
   $day = $r['start_date'];
-  while ($day <= $r['end_date'] && count($occasions) < 20) {
+  while ($day <= $r['end_date'] && count($occasions) < 100) {
+    // Make sure that the day timestamp is set to 00:00 hours
+    $day -= 60 * 60 * date('G', $day);
     if ($day >= $today) {
       $wd = date('w', $day);
       if (isset($days[$wd])) {
@@ -787,7 +789,6 @@ function cbisimport_expand_occasion($occasion) {
     }
     $day += 60 * 60 * 24;
   }
-
   return $occasions;
 }
 

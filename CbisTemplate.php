@@ -131,8 +131,8 @@ class CbisTemplate {
             $o = strtotime('0001-01-01T00:00:00');
             $occasion->StartDate = strtotime($occasion->StartDate);
             $occasion->EndDate = strtotime($occasion->EndDate);
-            $occasion->StartTime = strtotime($occasion->StartTime) - $o;
-            $occasion->EndTime = strtotime($occasion->EndTime) - $o;
+            $occasion->StartTime = $this->getTimeOffset($occasion->StartTime);
+            $occasion->EndTime = $this->getTimeOffset($occasion->EndTime);
             $occasion->EntryTime = strtotime($occasion->EntryTime);
             if ($occasion->EntryTime == $o) {
               $occasion->EntryTime = NULL;
@@ -155,6 +155,12 @@ class CbisTemplate {
     $sane['TemplateParents'] = $this->parents;
     
     return $sane;
+  }
+
+  private function getTimeOffset($isotime) {
+    $t = date('Y-m-d') . 'T' . substr($isotime, 11, 8) . date('P');
+    $o = strtotime($t) - strtotime(date('Y-m-d\T00:00:00P'));
+    return $o;
   }
 
   /**
