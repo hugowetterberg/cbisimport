@@ -212,11 +212,6 @@ function cbisimport_cron($debug=FALSE) {
     }
   }
 
-  if (!empty($_GET['t'])) {
-    print $output;
-    die;
-  }
-
   return $output;
 }
 
