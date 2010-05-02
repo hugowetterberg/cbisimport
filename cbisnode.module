@@ -85,7 +85,7 @@ function cbisnode_cbisimport_saving_product($info) {
     if (cbisimport_category_is_instance_of($category, 2457) || cbisimport_category_is_instance_of($category, 2395)) { // Event
       $type = 'event';
     }
-    $tags = array_merge($tags, cbisimport_category_tags($category->Id, 2));//$product['LanguageId']));
+    $tags = array_merge($tags, cbisimport_category_tags($category->Id, $product['LanguageId']));
   }
 
   $attr = $product['Attributes'];

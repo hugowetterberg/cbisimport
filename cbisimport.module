@@ -9,7 +9,7 @@ define('CBIS_LANGUAGE_DA', 4);
 /**
  * Implementation of hook_perm().
  */
-function hook_perm() {
+function cbisimport_perm() {
   return array('administer cbis import');
 }
 
@@ -123,6 +123,10 @@ function cbisimport_client($service, $options = array()) {
  * Menu system callback for the trigger import page.
  */
 function cbisimport_trigger_import_page() {
+  if (user_access('administer cbis import') && !empty($_GET['refresh'])) {
+    variable_set('cbisimport_last_update_check', 0);
+    variable_set('cbisimport_last_updated', 0);
+  }
   return nl2br(cbisimport_cron(TRUE));
 }
 
@@ -141,7 +145,7 @@ function cbisimport_cron($debug=FALSE) {
 
     $update_status = cbisimport_product_update_status();
     $updates = array();
-    $last_update = variable_get('cbisimport_last_updated', 0);
+    $since = $last_update = variable_get('cbisimport_last_updated', 0);
     foreach ($update_status as $id => $updated) {
       if ($updated > $since) {
         $last_update = max($updated, $last_update);
@@ -465,22 +469,25 @@ function cbisimport_merge_recursive() {
  * @return array
  */
 function cbisimport_category_tags($cid, $language) {
-  $categories = cbisimport_get_categories($language);
-  $category = !empty($categories[$cid]) ? $categories[$cid] : NULL;
+  static $langs = array();
+
+  if (empty($langs[$language])) {
+    $category_tags = db_result(db_query("SELECT tags FROM {cbisimport_category_tags} WHERE language = %d", array(
+      ':language' => $language,
+    )));
+    $category_tags = unserialize($category_tags);
+    if (!$category_tags) {
+      $category_tags = array();
+    }
+    $langs[$language] = $category_tags;
+  }
+  else {
+    $category_tags = $langs[$language];
+  }
+
   $tags = array();
-  while ($category) {
-    $taggified = preg_split('/[\/\s]+/', drupal_strtolower(trim($category->Name)));
-    foreach ($taggified as $tag) {
-      if (drupal_strlen($tag) > 1) {
-        $tags[] = $tag;
-      }
-    }
-    if ($category->Parent && !empty($categories[$category->Parent])) {
-      $category = $categories[$category->Parent];
-    }
-    else {
-      $category = NULL;
-    }
+  if (!empty($category_tags[$cid])) {
+    $tags = explode(', ', $category_tags[$cid]);
   }
   return $tags;
 }
