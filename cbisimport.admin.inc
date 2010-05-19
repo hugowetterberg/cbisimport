@@ -176,3 +176,19 @@ function _cbisimport_category_hierarchical_name($category, $categories) {
   }
   return array_reverse($name);
 }
+
+function cbisimport_reimport_confirmation_form() {
+  $form = array(
+    '#redirect' => 'admin/settings/cbisimport',
+  );
+  return confirm_form($form, t('Do you want to reimport all products?'), 'admin/settings/cbisimport',
+    t('Resets some cbisimport variables and caches so that all products will be refreshed'));
+}
+
+function cbisimport_reimport_confirmation_form_submit() {
+  variable_set('cbisimport_last_update_check', 0);
+  variable_set('cbisimport_last_updated', 0);
+  cache_clear_all('cbisimport:', 'cache', TRUE);
+  cbisimport_cron();
+  drupal_set_message(t('CBIS products will be reimported.'));
+}
